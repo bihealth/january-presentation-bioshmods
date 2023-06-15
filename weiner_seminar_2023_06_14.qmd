@@ -1,5 +1,6 @@
 ---
-title: "Building a reproducible GUI with R and Shiny"
+title: "Building an accountable GUI with R and Shiny"
+subtitle: "github.com/bihealth/january-presentation-bioshmods"
 author: 
   - name: "January Weiner"
     orcid: 0000-0003-1438-7819
@@ -87,6 +88,8 @@ Accountability: you can retrace back the steps that led to the result
 ## The CUBI (pseudo)bulk RNA-seq ecosystem
 
 ![](images/drawing.png)
+
+## {background-image="images/seapiper_interface.png" background-size=100% background-position="90% 10%"}
 
 ## seaPiper {background-image="images/piper_hex.png" background-size=10% background-position="90% 10%"}
 
