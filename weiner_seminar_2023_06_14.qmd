@@ -1,0 +1,620 @@
+---
+title: "Building a reproducible GUI with R and Shiny"
+author: 
+  - name: "January Weiner"
+    orcid: 0000-0003-1438-7819
+    affiliations:
+     - ref: cubi
+affiliations:
+  - id: cubi
+    name: Core Unit for Bioinformatics, BIH@Charité
+    address: Charitéplatz 1, 
+    postal-code: 10117 
+    city: Berlin 
+    country: Germany
+title-slide-attributes:
+  data-background-image: files/bih_bg_logo.png
+format:
+  revealjs:
+    margin: 0.05
+    footer: "Core Unit for Bioinformatics, BIH@Charite"
+    theme: cubi.scss
+    logo: files/bih_logo_small.png
+    transition: fade
+    slide-number: true
+    smaller: true
+    navigation-mode: linear
+    self-contained: true
+    execute:
+      echo: true
+---
+
+
+
+## The problem
+
+Static reports are great, but you can only show so much data.
+
+. . .
+
+R objects or even Excel files are not the best way to share data with
+non-programmers, as interactive exploration is hard without tools like R.
+
+. . .
+
+GUI is a great way to make your tools accessible to non-programmers, but
+
+ * it is hard to make it reproducible
+ * it is hard to make it accountable
+ * it is not extensible
+ * there is a gap between GUI and writing a manuscript
+
+::: {.aside}
+Accountability: you can retrace back the steps that led to the result
+:::
+
+## Accountability vs Reproducibility
+
+:::: {.columns}
+
+::: {.column width="40%" .fragment}
+
+### Reproducibility
+
+ * you can reproduce the results
+ * data -> results
+ * what are results?
+ * how were the figures / tables / p-values generated or chosen from the
+   results?
+:::
+
+::: {.column width="40%" .fragment}
+
+### Accountability
+
+ * results -> data
+ * for any given figure / table / p-value, we can trace back the steps
+   required to generate them
+ * what is accountable, might not be reproducible (pseudocode,
+   randomizations)
+ * what is reproducible, might not be (easily) accountable (figures /
+   tables / p-values are a subset of all results)
+
+:::
+
+::::
+
+## The CUBI (pseudo)bulk RNA-seq ecosystem
+
+![](images/drawing.png)
+
+## seaPiper {background-image="images/piper_hex.png" background-size=10% background-position="90% 10%"}
+
+
+ - A GUI for the CUBI (pseudo)bulk RNA-seq pipelines
+ - Written in R and Shiny
+ - Uses the output CUBI pipeline
+ - Uses the CUBI R package ecosystem
+ - Uses the CUBI data ecosystem
+ - no analysis, only visualization and exploration
+
+
+## Why R/Shiny? {background-image="images/shiny-hex.png" background-size=10% background-position="90% 10%"}
+
+
+## Shiny vs Dash
+
+:::: {.columns}
+
+::: {.column width="40%" .fragment}
+
+### Dash vs Shiny
+
+ * good for Python users
+ * more control over the looks
+ * easier to make it look good
+ * easier / more elegant to use bootstrap
+ * more features
+
+:::
+
+::: {.column width="40%" .fragment}
+
+### Shiny vs Dash
+
+ * good for R users
+ * simple code produces better looking results without much tweaking
+ * generally more concise code (AFAICT)
+ * much less code to write reactive output (AFAICT)
+ * you can combine it with Rmarkdown
+ * **debugging is a nightmare** (compared to R)
+
+:::
+
+::::
+
+## Basics of shiny
+
+Simple code example for shiny:
+
+```{r eval=FALSE}
+#| code-line-numbers: "|2-12|13-17|18|"
+library(shiny)
+ui <- fluidPage(
+  titlePanel("Hello Shiny!"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("obs", "Number of observations:", min = 0, max = 1000, value = 500)
+    ),
+    mainPanel(
+      plotOutput("distPlot")
+    )
+  )
+)
+server <- function(input, output) {
+  output$distPlot <- renderPlot({
+    hist(rnorm(input$obs))
+  })
+}
+shinyApp(ui = ui, server = server)
+```
+
+## {background-image="images/shiny_example.png" background-size=100%}
+
+## Input and output
+
+To access input and output, shiny provides the objects `input` and
+`output` in the server function. These are reactive objects, which means
+that they are automatically updated when their dependencies change or 
+when the user interacts with the UI.
+Vice versa, they update their dependencies when they change.
+
+## Reactive expressions and variables
+
+Reactive variables are created with `reactive()` or `reactiveVal()`. Also,
+`input` and `output` (available from the server function) are reactive.
+
+. . .
+
+Reactive expressions are the bread and butter of shiny. They are
+basically functions that are evaluated when their dependencies change. If
+the code contains any reactive variables, the reactive expression is
+automatically re-evaluated when the reactive variable changes.
+
+
+## Why debugging Shiny sucks
+
+ * most of the "interesting" code is run in anonymous functions /
+   expressions
+
+Therefore:
+
+ * you can't use `trace()` 
+ * tracebacks are useless
+ * finding out where the error is is annoying in large projects
+
+## Debugging Shiny T&T {background-image="images/shiny-hex.png" background-size=10% background-position="95% 10%"}
+
+::: {.incremental}
+ * stick to best practices: write small functions, test them, separate logic
+   from GUI, handle exceptions, check input (e.g. use assert_that & friends), be verbose about errors, sprinkle messages
+   about your code, avoid ambiguous statements (e.g. `sapply`), don't use
+   global variables
+ * always print to `stderr` (because some shiny functions capture `stdout`)
+ * use S3 or S4 objects to encapsulate your data, and create methods to
+   validate / handle them
+ * use `browser()` to debug problematic functions
+ * `options(shiny.error = browser)` or `options(shiny.error = recover)` sometimes helps.
+ * param to shinyApp: `display.mode = "showcase"` to see the code (not always helpful)
+ * `trace()` does not work :-(
+:::
+
+::: {.aside}
+See also [https://shiny.posit.co/r/articles/improve/debugging/](https://shiny.posit.co/r/articles/improve/debugging/)
+:::
+
+
+## What do I want for Christmas {background-image="images/piper_hex.png" background-size=10% background-position="90% 10%"}
+
+::: {.incremental}
+ * recording generated plots, tables, results from seaPiper
+ * the recordings should be used to generate a Quatro / Rmarkdown document
+ * the markdown document can be used as a template for further specific analyses
+ * the code should be beginner-friendly and not reference exotic packages
+   such as Rseasnap (too much)
+ * the users should be able to download a single docx / html file with
+   selected results and figures
+:::
+
+## How seaPiper works {background-image="images/piper_hex.png" background-size=10% background-position="90% 10%"}
+
+. . .
+
+It delegates everything to bioshmods.
+
+## Bioshmods - shiny modules for bioinformatics
+
+ * modular
+ * versatile
+ * extensible
+ * easy to implement
+ * well documented
+ * easy to debug
+
+. . .
+
+At least, that's the theory. Working on it.
+
+## How R Shiny modules work
+
+Shiny modules do what it says on the box: allow a modular approach to
+building shiny apps. A module gets its own ID (`namespace`) to avoid name clashes and
+uses it to create and access its UI elements.
+
+. . .
+
+Basically, you need to define two functions:
+
+ * UI function returning the UI, which then you can put within the UI of
+   the main app
+ * server function returning the server, which then you can put within
+   the server of the main app
+
+::: {.aside}
+Use the `NS(namespace, id)` function to `namespace`-ify your UI elements.
+For example, `NS("gb", "table")` will create a UI element with the ID table
+in namespace `gb`. Then, you can use `input$table` or `output$table` to
+access the element from within the server module.
+:::
+
+## Bioshmods example
+
+:::: {.columns}
+
+::: {.column width="40%"}
+
+```{r eval=FALSE}
+#| code-line-numbers: "|3|4-7|9-12|15|"
+library(shiny)
+library(bioshmods)
+data(C19)
+ui <- fluidPage(
+    geneBrowserTableUI("gb", 
+      names(C19$contrasts))
+)
+
+server <- function(input, output) {
+  geneBrowserTableServer("gb", 
+    cntr=C19$contrasts,
+    annot=C19$annotation)
+}
+
+shinyApp(ui, server)
+```
+
+:::
+
+::: {.column width="40%"}
+
+ * C19 - example COVID19 data set (reduced for size)
+ * `C19$contrasts` - named list of contrast data frames
+ * `C19$annotation` - annotation data frame
+
+:::
+
+::::
+
+## Bioshmods example
+
+![geneBrowserTableServer](images/gene_browser.png)
+
+
+## {background-image="images/seapiper_interface.png" background-size=100% background-position="90% 10%"}
+
+
+## Communication between modules
+
+Reactive expressions hold the state of the module:
+ 
+ * which data set was selected
+ * which contrast was selected
+ * which gene was clicked, etc.
+
+When a reactive variable for communication is provided to a bioshmod
+module, it is automatically updated when the user interacts with the
+module.
+
+## Example: bioshmods
+
+
+```{r eval=FALSE}
+#| code-line-numbers: "|1-4|3|7|9|5-14|12-14|"
+ui <- fluidPage(
+         geneBrowserTableUI("gb", names(C19$contrasts)),
+         textOutput("gene")
+      )
+
+server <- function(input, output) {
+  gene_id <- reactiveValues()
+  geneBrowserTableServer("gb", 
+    gene_id = gene_id,
+    cntr    = C19$contrasts,
+    annot   = C19$annotation)
+  output$gene <- 
+    renderText(sprintf("gene ID: %s, data set: %s", 
+      gene_id$id, gene_id$ds))
+}
+
+shinyApp(ui, server)
+```
+
+## Example: bioshmods
+
+![](images/bioshmods_example_1.png)
+
+
+## Example: bioshmods
+
+
+```{r eval=FALSE}
+#| code-line-numbers: "|4|5|9|7|9|5-14|12-14|"
+gene_browser <- function(x, primary_id="PrimaryID") {
+
+  ui <- fluidPage(
+    geneBrowserTableUI("geneTab", names(x$contrasts)),
+    geneBrowserPlotUI("genePlot", contrasts=TRUE)
+  )
+
+  server <- function(input, output, session) {
+    gene_id <- reactiveValues()
+    geneBrowserTableServer("geneTab", 
+      cntr=x$contrasts, 
+      annot=x$annotation, 
+      gene_id=gene_id,
+      annot_linkout=annot_linkout)
+    geneBrowserPlotServer("genePlot", 
+      gene_id=gene_id, 
+      covar=x$covariates, 
+      exprs=x$expression, 
+      annot=x$annotation)
+  }
+
+  shinyApp(ui, server)
+}
+gene_browser(C19)
+```
+
+
+
+
+
+
+## What about accountability?
+
+
+Main idea: rather then saving individual plots, save the exact code that
+generates them.
+
+. . .
+
+Then, generate a markdown report with the code and the plots.
+
+. . .
+
+Problem:
+
+ * the module server function must create a code chunk that can be used from other places
+ * the code, however, should be the same in both places
+
+## The code generated by bioshmods
+
+```{r}
+#| echo: false
+#| eval: true
+library(bioshmods)
+library(ggplot2)
+data(C19)
+```
+
+
+
+
+```{r}
+#| echo: true
+#| eval: true
+#| output-location: fragment
+df <- data.frame(C19$covariates, Expression=C19$expression["ENSG00000066279", , 
+drop=TRUE])
+colnames(df)[ncol(df)] <- "Expression"
+ggplot(df, aes(x=group, y=Expression)) + 
+geom_boxplot(outlier.shape = NA) + 
+geom_jitter(size=3, alpha=.5, width=.1)
+```
+
+## The most important things
+
+ * This is *exactly* the same code that is used to generate the graphics
+ * The variables are referenced from the parent environment - the caller of
+   the module can use the chunk as is (e.g., to generate the report)
+
+## Under the hood
+
+ * A function constructs the code based on the module logic
+ * the constructed code references the variables *in the parent environment*
+   (in the function that called the module server)
+    * makes debugging actually somewhat easier - just paste the code into
+      your terminal and run it
+    * however, I am not sure whether this is a good idea in general
+      (currently, it is possible to run it both ways)
+ * the same code is used to generate the graphics, the markdown chunk and
+   the downloadable file
+
+::: {.aside}
+To use the parent environment, the variable names are extracted from
+function parameters with `deparse(substitute())`. This is a compromise
+between the convenience of not having to pass the variable names along with
+variables themselves to make basic usage more straightforward. However,
+this might not be a good idea in the long run.
+:::
+
+## TODO
+
+::: {.incremental}
+ * [ ] add chunk generation throughout all modules (in progress)
+ * [ ] add a module for generating reports in requested format
+ * [ ] make UI design for "recording report" more intuitive
+ * [ ] come up with a logo
+:::
+
+# Thank you for your attention! {.inverse background-color="#70ADC1"}
+
+## Slide 1 
+
+To compile, type `quarto render template.qmd`
+
+Make sure you have Quarto 1.2 installed from
+[here](https://quarto.org/docs/download/prerelease.html).
+
+::: {.aside}
+This aside note can be used to add citations or notes
+:::
+
+## Multicolumn slide
+
+:::: {.columns}
+
+::: {.column width="40%" .fragment}
+### Left column title
+
+Left column...
+:::
+
+::: {.column width="60%" .fragment}
+### Right column title
+
+Right column (60%)...
+
+(adding `.fragment` causes the contents to be displayed in steps)
+:::
+
+::::
+
+
+
+
+# Part II separator slide {.inverse background-color="#70ADC1"}
+
+## Simple numbered and unnumbered lists
+
+:::: {.columns}
+
+::: {.column width="50%"}
+ * One
+ * Two
+:::
+
+::: {.column width="50%"}
+ 1. One
+ 2. Two
+:::
+
+::::
+
+## Incremental list
+
+::: {.incremental}
+ - Item 1
+ - Item 2
+ - Item 3
+:::
+
+
+## Incremental contents
+
+First part
+
+. . .
+
+Second part
+
+
+---
+
+This is a slide without a title (use the dashes to separate)
+
+## Transitions {transition="zoom"}
+
+Define them in the YAML header or like here, in the slide title.
+
+Types: none, fade, slide, convex, concave, zoom
+
+
+## Code 
+
+
+```{r}
+#| echo: true
+#| output-location: column-fragment
+#| label: fig-sample
+#| fig-cap: A dumb plot
+plot(1:10)
+```
+
+::: {.callout-tip}
+Ctrl-click on the image to zoom. And here is a `r pi` for you.
+:::
+
+## Code
+
+There are many customization options for the code. For example, you can
+highlight (and even animate) certain lines of code:
+
+
+```{r}
+#| code-line-numbers: "|1|2|3|"
+#| echo: true
+a <- rnorm(10)
+b <- rnorm(10) + a
+c <- a + b * rnorm(10)
+```
+
+You can also specify where precisely should the output of the code go:
+below the code (default), on the next slide, on a right-hand column...
+
+
+
+
+## Thank you {.inverse background-color="#70ADC1"}
+
+:::: {.columns}
+
+::: {.column width="40%"}
+Acknowledgements
+
+ - N.N.
+ - Y.Y.
+ 
+:::
+
+::: {.column width="40%"}
+Sources
+
+ - Source 1
+ - Source 2
+:::
+
+::: {.column width="20%"}
+
+```{r}
+#| fig-width: 5
+#| fig-height: 5
+library(qrcode)
+plot(qr_code("https://google.com"))
+```
+
+
+
+:::
+
+
+::::
